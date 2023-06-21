@@ -1,0 +1,193 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+ 
+  <!--xacro:include filename="$(find robotiq_epick_visualization)/urdf/robotiq_epick.gazebo.xacro"/-->  
+
+  <xacro:property name="joint_lower_limit" value="0.0" />
+  <xacro:property name="joint_upper_limit" value="0.055" />
+
+  <xacro:property name="robotiq_epick_dimX" value="0.0750" />
+  <xacro:property name="robotiq_epick_dimY" value="0.0830" />
+  <xacro:property name="robotiq_epick_dimZ" value="0.1047" />
+
+  <xacro:property name="robotiq_epick_finH" value="0.0024" />
+  <!-- Initial robotiq_epick file has object center at 7.3 mm (+ 5.2 = 12.5) distance from the hole (ear) end -->
+  <xacro:property name="robotiq_epick_earH" value="0.0125" />
+  <xacro:property name="robotiq_epick_earR" value="0.0059" />
+
+  <xacro:property name="epick_cylinder_H"   value="0.0900" />
+  <xacro:property name="epick_cylinder_R"   value="0.0059" />
+
+  <xacro:property name="epick_end_effect_H" value="0.0100" />
+  <xacro:property name="epick_end_effect_R" value="0.0225" />
+
+  <xacro:property name="coupling_D" value="0.070" />
+  <xacro:property name="coupling_H" value="0.020" />
+  <xacro:property name="coupling_h" value="0.003" />
+
+
+  <xacro:macro name="epick_hand" params="hand_link_name robot_name">
+    <link name="${hand_link_name}">
+      <inertial>
+        <mass value="0.745" />
+        <!-- <origin xyz="0 0.0 0.055" rpy="0 0 0" /> -->
+        <origin xyz="0 0 ${(robotiq_epick_dimZ - robotiq_epick_finH)/2}" rpy="0 0 0" />
+        <inertia ixx="0.003084" ixy="0.0" ixz="0.0" iyy="0.002999" iyz="0.0" izz="0.000546" />
+      </inertial>
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>          
+          <mesh filename="package://robotiq_epick_visualization/meshes/visual/robotiq_epick_full.dae" scale="0.001 0.001 0.001"/>          
+        </geometry>
+        <material name="WHITE">
+          <color rgba="1 1 1 1"/>
+        </material>        
+      </visual>
+
+      <!-- initial robotiq_epick -->
+      <collision>
+        <origin xyz="0 0 ${(robotiq_epick_dimZ - robotiq_epick_finH)/2}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="${robotiq_epick_dimY/2}" length="${robotiq_epick_dimZ - robotiq_epick_finH}"/>
+        </geometry>       
+      </collision>      
+      <!-- add-on cylinder -->
+      <collision>        
+        <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H/2}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="${epick_cylinder_R}" length="${epick_cylinder_H}"/>
+        </geometry>  
+      </collision>
+      <!-- add-on suction cup as epick-end-effector link -->
+      <!-- <collision>        
+        <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H + epick_end_effect_H/2}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="${epick_end_effect_R}" length="${epick_end_effect_H}"/>
+        </geometry>  
+      </collision>  -->
+
+      <!--
+      <visual>        
+        <origin xyz="0 0 ${0.08/2+0.097}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="0.006" length="0.08"/>
+        </geometry>
+        <material name="mat2">
+          <color rgba="1 0 0 1"/>
+        </material>             
+      </visual>  
+      -->
+
+      <!-- -0.095 + 0.102/2 = -0.044-->   
+      <!-- <visual>
+        <origin xyz="0 0 ${-0.044+0.095+0.014+0.09}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="0.006" length="0.09"/>
+        </geometry>       
+      </visual>  -->
+
+      <!-- -0.095 + 0.102/2 = -0.044 -->
+      <!--
+      <collision>
+        <origin xyz="0 0 ${0.114/2}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="0.035" length="0.114"/>
+        </geometry>       
+      </collision>      
+      <collision>        
+        <origin xyz="0 0 ${0.08/2+0.097}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="0.006" length="0.08"/>
+        </geometry>
+        <material name="mat2">
+          <color rgba="1 0 0 1"/>
+        </material>        
+      </collision>
+      -->     
+      <!-- -0.095 + 0.102/2 = -0.044-->
+      <!-- <collision>
+        <origin xyz="0 0 ${-0.044+0.095+0.014+0.09}" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="0.006" length="0.09"/>
+        </geometry>       
+      </collision> -->
+    </link>
+
+    <!-- hand_link_name = gripper_base_link which is (coupling_H - coupling_h)mm from coupling (or arm_tool0) along z-axis -->
+    <joint name="${hand_link_name}-epick_end_effector_joint" type="fixed">
+      <parent link="${hand_link_name}"/>
+      <child link="epick_end_effector"/>
+      <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H + epick_end_effect_H/2}" rpy="0 0 ${0.5 * pi}"/>      
+    </joint>
+
+    <link name="epick_end_effector">
+      <!-- add-on suction cup as epick-end-effector link (only collision, visual is included in mesh file). 
+           This is done to decrease computational time for collision with robot's links 
+           'visual' tag is used in RViz, but it's included here to paint the link to specific ('BLUE') color. Otherwise it is red by default. 
+                Also, if you need to define new color, name it differently than already defined ('WHITE' above) or you'd get the same color despite different rgba
+           'collision' is necessary to consider the link for collision detection in Gazebo (RViz doesn't have collision detection) -->
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="${epick_end_effect_R}" length="${epick_end_effect_H}"/>       
+        </geometry>
+        <material name="BLUE">
+          <color rgba="0 0 1 1"/>
+        </material>        
+      </visual>      
+      <collision>        
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>          
+          <cylinder radius="${epick_end_effect_R}" length="${epick_end_effect_H}"/>
+        </geometry>
+      </collision> 
+    </link>
+
+    <link name="gripper_equilibrium_grasp"/>
+    <joint name="${hand_link_name}-gripper_equilibrium_grasp_joint" type="fixed">
+      <parent link="${hand_link_name}"/>
+      <child link="gripper_equilibrium_grasp"/>
+      <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H}" rpy="0 0 ${0.5 * pi}"/>
+    </joint>
+
+    <!--
+    <joint name="$hand__end_effector_joint" type="fixed">
+      <parent link="${hand_link_name}"/>
+      <child link="epick_end_effector"/>
+      <origin xyz="0 0 ${.097+.090}" rpy="0 0 0"/>      
+    </joint>
+    -->
+    <!--
+    <link name="epick_end_effector">
+      <gravity>0</gravity>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 .005"/>
+        <geometry>
+          <cylinder radius="0.0225" length="0.01"/>          
+        </geometry>
+        <material name="transparent">
+          <color rgba="0 0 1 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 .005"/>
+        <geometry>
+          <cylinder radius="0.0225" length="0.01"/>          
+        </geometry>
+        <material name="transparent">
+          <color rgba="0 0 1 1"/>
+        </material>
+      </collision>
+      <inertial>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <mass value="0.0001"/>
+        <inertia ixx="1e-08" ixy="0" ixz="0" iyy="1e-08" iyz="0" izz="1e-08"/>
+      </inertial>
+    </link> 
+    -->
+
+    <!-- <xacro:epick_hand_gazebo robot_name="${robot_name}" />     -->
+  </xacro:macro>
+
+</robot>

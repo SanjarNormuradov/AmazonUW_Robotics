@@ -1,0 +1,12 @@
+<launch>
+  <arg name="rviz" default="true"/>
+  <arg name="gui" default="true"/>
+  <arg name="paused" default="false"/>
+  <arg name="pod_x" default="0.832"/>
+  <arg name="pod_y" default="0.4125"/>
+  <arg name="pod_yaw" default="-1.57"/>
+  <arg name="pod_id" default="1" />
+  <arg name="world" default="$(find aurmr_gazebo)/worlds/fc.world" />
+  <!-- <env name="ROS_PACKAGE_PATH" value="/home/patorrad/aurmr_ws/src/aurmr_tahoma/aurmr_tasks:/home/patorrad/aurmr_ws/src/aurmr_tahoma/robotiq/robotiq_2f_85_gripper_visualization:/home/patorrad/aurmr_ws/src/aurmr_tahoma/robotiq/robotiq_epick_visualization:/home/patorrad/aurmr_ws/src/aurmr_tahoma/tahoma_moveit_config:/home/patorrad/aurmr_ws/src/aurmr_tahoma/universal_robot/ur_description:/home/patorrad/aurmr_ws/src/aurmr_tahoma/tahoma_description:/home/patorrad/aurmr_ws/src/aurmr_sim/aurmr_gazebo:/opt/ros/noetic/share:$(optenv ROS_PACKAGE_PATH)" /> -->
+  <include file="$(find aurmr_gazebo)/launch/empty_simulation.launch" pass_all_args="true"/>
+</launch>

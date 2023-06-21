@@ -1,0 +1,63 @@
+<launch>
+  <arg name="use_sim_time" default="true" />
+  <arg name="gui" default="true" />
+  <arg name="debug" default="false" />
+  <arg name="world" />
+  <arg name="robot_x" default="0" />
+  <arg name="robot_y" default="0" />
+  <arg name="robot_yaw" default="0" />
+  <arg name="pod_x" />
+  <arg name="pod_y" />
+  <arg name="pod_yaw" default="-1.57" />
+  <arg name="pod_id" default="1" />
+  <!-- Gazebo parameters -->
+  <arg name="paused" default="false" doc="Starts Gazebo in paused mode" />
+
+  <arg unless="$(arg debug)" name="gazebo_binary" value="gzserver" />
+  <arg if="$(arg debug)" name="gazebo_binary" value="debug" />
+
+  <arg if="$(arg paused)" name="sim_world" value="-u $(arg world)" />
+  <arg unless="$(arg paused)" name="sim_world" value="$(arg world)" />
+
+  <!-- set use_sim_time flag -->
+  <param if="$(arg use_sim_time)" name="/use_sim_time" value="true" />
+
+  <!-- start world (-u to start paused, allowing robot spawn to set initial joint configurations -->
+  <node name="gazebo" pkg="gazebo_ros" type="$(arg gazebo_binary)" args="$(arg sim_world)" respawn="false" output="screen" required="true" />
+
+  <!-- start gui -->
+  <node if="$(arg gui)" name="gazebo_gui" pkg="gazebo_ros" type="gzclient" respawn="false" output="screen" launch-prefix="$(optenv OPTIRUN_LAUNCH_PREFIX)" required="true" />
+
+  <include file="$(find aurmr_gazebo)/launch/include/spawn_tahoma.xml">
+    <arg name="x" value="$(arg robot_x)" />
+    <arg name="y" value="$(arg robot_y)" />
+  </include>
+
+  <!-- Gazebo doesn't provide the scaled interfaces (which the robot has), so pass scaled_pos use through to the unscaled interface -->
+  <remap from="/scaled_pos_joint_traj_controller/follow_joint_trajectory" to="/pos_joint_traj_controller/follow_joint_trajectory"/>
+  <!-- MoveIt -->
+  <include file="$(find tahoma_moveit_config)/launch/move_group.launch">
+    <arg name="load_robot_description" value="false" />
+    <arg name="pipeline" value="ompl" />
+  </include>
+
+  <include file="$(find tahoma_moveit_config)/launch/servo.launch" />
+
+  <!-- Initialize 'pod_state_publisher' rostopic from 'robot_state_publisher' package by remaping 'robot_description' to 'pod_description' -->
+  <include file="$(find tahoma_description)/launch/load_pod.launch">
+      <arg name="id" value="$(arg pod_id)"/>
+  </include>
+
+  <!-- Start up 'analyze_workspace' node and run python file where the same node is initialized and pod spawned -->
+  <node pkg="aurmr_tasks" type="analyze_workspace" name="analyze_workspace" output="screen">
+      <param name="pod_id" value="$(arg pod_id)" />
+  </node>
+
+  <!-- <include file="$(find aurmr_gazebo)/launch/include/spawn_pod.xml" if="$(eval pod_id > 0)">
+      <arg name="x" value="$(arg pod_x)" />
+      <arg name="y" value="$(arg pod_y)" />
+      <arg name="yaw" value="$(arg pod_yaw)" />
+      <arg name="id" value="$(arg pod_id)" />
+  </include> -->
+
+</launch>
