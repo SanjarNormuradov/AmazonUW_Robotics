@@ -1,12 +1,46 @@
 <launch>
-  <arg name="rviz" default="true"/>
-  <arg name="gui" default="true"/>
-  <arg name="paused" default="false"/>
-  <arg name="pod_x" default="0.832"/>
-  <arg name="pod_y" default="0.4125"/>
-  <arg name="pod_yaw" default="-1.57"/>
-  <arg name="pod_id" default="1" />
-  <arg name="world" default="$(find aurmr_gazebo)/worlds/fc.world" />
-  <!-- <env name="ROS_PACKAGE_PATH" value="/home/patorrad/aurmr_ws/src/aurmr_tahoma/aurmr_tasks:/home/patorrad/aurmr_ws/src/aurmr_tahoma/robotiq/robotiq_2f_85_gripper_visualization:/home/patorrad/aurmr_ws/src/aurmr_tahoma/robotiq/robotiq_epick_visualization:/home/patorrad/aurmr_ws/src/aurmr_tahoma/tahoma_moveit_config:/home/patorrad/aurmr_ws/src/aurmr_tahoma/universal_robot/ur_description:/home/patorrad/aurmr_ws/src/aurmr_tahoma/tahoma_description:/home/patorrad/aurmr_ws/src/aurmr_sim/aurmr_gazebo:/opt/ros/noetic/share:$(optenv ROS_PACKAGE_PATH)" /> -->
+  <arg name="rviz"   default="true"  doc="Starts RViz" />
+  <arg name="gui"    default="true"  doc="Starts Gazebo in GUI mode" />
+  <arg name="paused" default="false" doc="Starts Gazebo in paused mode" />
+  <arg name="world"  default="$(find aurmr_gazebo)/worlds/fc.world" doc="" />
+
+
+  <arg name="pod_id"  default="1" doc="Pod type" />
+  <!-- Pod pose range in centimeters -->
+  <!-- <arg name="pod_x" default="0.832" /> -->
+  <!-- <arg name="pod_y" default="0.4125" /> -->
+  <!-- <arg name="pod_yaw" default="-1.57"/> -->
+  <arg name="x_start" default="60" />
+  <arg name="x_stop"  default="65" />
+  <arg name="x_step"  default="5" />
+  <arg name="y_start" default="41" />
+  <arg name="y_stop"  default="46" />
+  <arg name="y_step"  default="5" />
+
+  <arg name="test_mode"      default="0"  doc="test_mode = 0: Reachibility | test_mode = 1: Manipulability" />
+  <arg name="bin_pose_randN" default="10" doc="Number of random pre-grasp poses for each bin" />
+  <arg name="ssl"            default="0"        
+       doc="SSL =      1: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to atan2(pod_bin_height(or _width), pod_bin_length)
+            SSL =      0: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
+            SSL = 0 or 1: if dRoll(or dPitch) < atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)" />
+
+  <arg name="dRoll"  default="8"   doc="Roll change (overall) in random pre-grasp pose generation (degrees). Roll and Yaw are flipped" />
+  <arg name="dPitch" default="8"   doc="Pitch change (overall) in random pre-grasp pose generation (degrees)" />
+  <arg name="dYaw"   default="720" doc="Yaw change (overall) in random pre-grasp pose generation (degrees)" />
+
+  <arg name="planning_attempts"     default="10"     doc="Number of planning attempts for each pre-graps pose joint configuration" />
+  <arg name="planning_time"         default="10.0"         doc="Allowed planning time, in seconds" />
+  <arg name="replan_attempts"       default="5"       doc="Number of attempts to compute joint configuration (IK) for each pre-graps pose" />
+  <arg name="joint_tolerance"       default="0.001"       doc="Target pose joint values tolerance, in ?" />
+  <arg name="position_tolerance"    default="0.001"    doc="Target pose position values tolerance, in meters" />
+  <arg name="orientation_tolerance" default="0.001" doc="Target pose orientation values tolerance, in radians" />
+
+  <arg name="goal_type" default="pose" 
+       doc="goal_type:  'pose'  - MoveIt would try to compute path for given pose (collision avoidance not guaranteed)
+                        'joint' - MoveIt would try to compute path for given joint configuration (collision avoidance guaranteed)" />
+  <arg name="vis_path"  default="False" 
+       doc="is_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose" />
+
+
   <include file="$(find aurmr_gazebo)/launch/empty_simulation.launch" pass_all_args="true"/>
 </launch>

@@ -26,7 +26,7 @@ import numpy as np
 
 from smach import State
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
-from gazebo_msgs.srv import SpawnModel
+from gazebo_msgs.srv import SpawnModel, DeleteModel
 from gazebo_msgs.msg import LinkStates
 from tf_conversions import transformations
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion, TransformStamped
@@ -60,7 +60,7 @@ def main(TEST_MODE:int,
     # print('---------\n')
 
     # for creating histogram to manually set manipulability threshold 
-    file = open("manipData.txt", "w")
+    # file = open("manipData.txt", "w")
 
     dYaw *= np.pi / 180 * 1/2
     dRoll *= np.pi / 180 * 1/2
@@ -225,7 +225,7 @@ def main(TEST_MODE:int,
             if solution is not None:
                 print(f"\n[row{row_id:02d}, column{column_id}] pose{rand_id:03d} has solution")
                 path, plan_time = solution
-                print(f"\t\t plan_time: {plan_time:2.4f}")
+                print(f"\t\t plan_time: {plan_time:2.4f}\n")
                 REACHABLE_BIN_APPROACHES.append(pose)
                 gripper_color = (0, 1, 0, 1)
                 if vis_path:
@@ -239,12 +239,12 @@ def main(TEST_MODE:int,
             marker_colors.append(gripper_color)
 
         print(len(REACHABLE_BIN_APPROACHES))
-        print(len(BIN_INNER_POSES))
+        print(len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N]))
 
-        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES)
+        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N])
         print("Reachability Score : " + str(ratio * 100))
 
-        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES, marker_colors))
+        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N], marker_colors))
         # return (ratio * 100)
 
     # manipulability test for bin approach poses
@@ -332,28 +332,28 @@ def pod_pose_sub_callback(TFmessage):
             print(f"x: {trnsfrm.transform.translation.x}, y: {trnsfrm.transform.translation.y}\n")
 
 
-# def transform_msg(x=0.6, y=0.4125):
-#     transform = TransformStamped()
-#     transform.header.stamp = rospy.Time.now()
-#     transform.header.frame_id = 'base_link'
-#     transform.child_frame_id = 'pod_base_link'
-#     transform.transform.translation.x = x
-#     transform.transform.translation.y = y
-#     transform.transform.translation.z = 0.0
-#     transform.transform.rotation.x = 0.0
-#     transform.transform.rotation.y = 0.0
-#     transform.transform.rotation.z = -0.706825181105366
-#     transform.transform.rotation.w = 0.7073882691671998
-#     return transform
+"""def transform_msg(x=0.6, y=0.4125):
+    transform = TransformStamped()
+    transform.header.stamp = rospy.Time.now()
+    transform.header.frame_id = 'base_link'
+    transform.child_frame_id = 'pod_base_link'
+    transform.transform.translation.x = x
+    transform.transform.translation.y = y
+    transform.transform.translation.z = 0.0
+    transform.transform.rotation.x = 0.0
+    transform.transform.rotation.y = 0.0
+    transform.transform.rotation.z = -0.706825181105366
+    transform.transform.rotation.w = 0.7073882691671998
+    return transform"""
 
 
-def spawn_pod(x=0.632, y=0.4125, id=1):
+def spawn_model(model_name='pod', x=0.632, y=0.4125, id=1):
     # load xacro file and parse it
     rospack = rospkg.RosPack()
     xacro_path = os.path.join(rospack.get_path('aurmr_gazebo'), 'robots', 'pod.gazebo.xacro')
     doc = xacro.parse(open(xacro_path))
     xacro.process_doc(doc, in_order=True, params={'id': str(id)})
-    pod_description = doc.toprettyxml(indent='  ')
+    model_description = doc.toprettyxml(indent='  ')
 
     # spawn model in gazebo
     rospy.wait_for_service('gazebo/spawn_urdf_model')
@@ -368,7 +368,7 @@ def spawn_pod(x=0.632, y=0.4125, id=1):
     pose.orientation.z = -0.706825181105366
     pose.orientation.w = 0.7073882691671998
 
-    spawn_model_prox('pod', pod_description, 'aurmr_gazebo', pose, 'world')
+    spawn_model_prox(model_name, model_description, 'aurmr_gazebo', pose, 'world')
 
     # broadcast static tf
     broadcaster = StaticTransformBroadcaster()
@@ -388,51 +388,64 @@ def spawn_pod(x=0.632, y=0.4125, id=1):
     broadcaster.sendTransform(transform)
 
 
+def delete_model(model_name='pod'):
+    try:
+        rospy.wait_for_service('gazebo/delete_model')
+        delete_model_prox = rospy.ServiceProxy('gazebo/delete_model', DeleteModel)
+        response = delete_model_prox(model_name)
+        if response.success:
+            print(f"Successfully deleted model {model_name}")
+        else:
+            print(f"Failed to delete model {model_name}: {response.status_message}")
+
+    # ServiceException (unavailable service, communication erros)
+    # ROSSerializationException (invalid model name)
+    # Gazebo errors (delete model that doesn't exist or has already been deleted)
+    except rospy.service.ServiceException as e: 
+        print(f"Service call failed: {e}")
+    except Exception as e: # General exceptions, such as ROSInterruptException when the node is shut down while waiting for the service
+        print(f"An unexpected error occurred: {e}")
+
+
 # robot position relative to bin gets hardcoded in fc.launch file
 if __name__ == '__main__':
     rospy.init_node("analyze_workspace")
-
-    print("Spawning pod...")
-    spawn_pod()
-
-    # pod_transform_broadcast = tf2_ros.TransformBroadcaster()
-    # pod_transform_broadcast.sendTransform(transform_msg(x=0.632, y=0.4125))
-
+    # print("Spawning pod...")
+    # spawn_pod()
     rospy.loginfo('Getting robot resources')
     simulation = rospy.get_param("/use_sim_time", False)
     State.simulation = simulation
     robot = Tahoma(simulation)
 
-    test_mode = rospy.get_param("test_mode", 0) # test_mode = 0: Reachibility | test_mode = 1: Manipulability
-    bin_pose_randN = rospy.get_param("bin_pose_randN", 2) # Number of random pre-grasp poses for each bin
-    dRoll = rospy.get_param("dRoll", 8) # Roll change (overall) in random pre-grasp pose generation (degrees)
-    dPitch = rospy.get_param("dPitch", 8) # Pitch change (overall) in random pre-grasp pose generation (degrees)
-    dYaw = rospy.get_param("dYaw", 720) # Yaw change (overall) in random pre-grasp pose generation (degrees)
+    print("Spawning pod...")
+    spawn_model()
+    rospy.sleep(1)
+    robot.add_pod_collision_geometry()
+
+    test_mode = rospy.get_param("~test_mode", 0) # test_mode = 0: Reachibility | test_mode = 1: Manipulability
+    bin_pose_randN = rospy.get_param("~bin_pose_randN", 2) # Number of random pre-grasp poses for each bin
+    dRoll = rospy.get_param("~dRoll", 8) # Roll change (overall) in random pre-grasp pose generation (degrees)
+    dPitch = rospy.get_param("~dPitch", 8) # Pitch change (overall) in random pre-grasp pose generation (degrees)
+    dYaw = rospy.get_param("~dYaw", 720) # Yaw change (overall) in random pre-grasp pose generation (degrees)
     # (Set Size Limits) 
     # SSL =      1: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to atan2(pod_bin_height(or _width), pod_bin_length)
     # SSL =      0: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
     # SSL = 0 or 1: if dRoll(or dPitch) < atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
-    SSL = rospy.get_param("ssl", False) 
+    SSL = rospy.get_param("~ssl", False) 
     
-    planning_attempts = rospy.get_param("planning_attempts", 10) # Number of planning attempts for each pre-graps pose joint configuration
-    planning_time = rospy.get_param("planning_time", 10.0) # Allowed planning time, in seconds
-    replan_attempts = rospy.get_param("replan_attempts", 5) # Number of attempts to compute joint configuration (IK) for each pre-graps pose
-    joint_tolerance = rospy.get_param("joint_tolerance", 0.001) # Target pose joint values tolerance, in ?
-    position_tolerance = rospy.get_param("position_tolerance", 0.001) # Target pose position values tolerance, in meters
-    orientation_tolerance = rospy.get_param("orientation_tolerance", 0.001) # Target pose orientation values tolerance, in radians
+    planning_attempts = rospy.get_param("~planning_attempts", 10) # Number of planning attempts for each pre-graps pose joint configuration
+    planning_time = rospy.get_param("~planning_time", 10.0) # Allowed planning time, in seconds
+    replan_attempts = rospy.get_param("~replan_attempts", 5) # Number of attempts to compute joint configuration (IK) for each pre-graps pose
+    joint_tolerance = rospy.get_param("~joint_tolerance", 0.001) # Target pose joint values tolerance, in ?
+    position_tolerance = rospy.get_param("~position_tolerance", 0.001) # Target pose position values tolerance, in meters
+    orientation_tolerance = rospy.get_param("~orientation_tolerance", 0.001) # Target pose orientation values tolerance, in radians
     
     # goal_type:  'pose'  - MoveIt would try to compute path for given pose (collision avoidance not guaranteed) 
     #             'joint' - MoveIt would try to compute path for given joint configuration (collision avoidance guaranteed)
-    goal_type = rospy.get_param("goal_type", 'pose') 
-    vis_path = rospy.get_param("vis_path", False) # vis_path = True: Visualize path from home pose to pre-grasp pose
+    goal_type = rospy.get_param("~goal_type", 'pose') 
+    vis_path = rospy.get_param("~vis_path", False) # vis_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose
 
 
-    # print(rospy.get_param("/use_sim_time", False))
-    # print(rospy.get_param('/pod_sim_description'))
-    # rospy.init_node("analyze_workspace")
-    # pose_sub = rospy.Subscriber("tf", TFMessage, callback)
-
-    # podPose_pub = rospy.Publisher('/tf_static', TFMessage, queue_size=1)
     pod_pose_sub = rospy.Subscriber('/tf_static', TFMessage, pod_pose_sub_callback)
 
     # Pod positon in centimeters, won't work as pod pose already set by launch file

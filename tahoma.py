@@ -9,7 +9,7 @@ import std_msgs
 from actionlib import SimpleActionClient
 from actionlib_msgs.msg import GoalStatusArray, GoalStatus
 from control_msgs.msg import FollowJointTrajectoryAction, GripperCommandAction, GripperCommandGoal, FollowJointTrajectoryGoal
-from trajectory_msgs.msg import JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 import tf2_ros
 
 #import tf2_geometry_msgs
@@ -23,7 +23,7 @@ from tf2_geometry_msgs import from_msg_msg
 from geometry_msgs.msg import PoseStamped, WrenchStamped, Quaternion, Pose, Point
 # from robotiq_2f_gripper_control.msg import vacuum_gripper_input arStatus
 from aurmr_tasks.util import all_close, pose_dist
-from moveit_msgs.msg import MoveItErrorCodes, MoveGroupAction, DisplayTrajectory
+from moveit_msgs.msg import MoveItErrorCodes, MoveGroupAction, DisplayTrajectory, RobotState
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
 from sensor_msgs.msg import JointState
 
@@ -148,8 +148,11 @@ class Tahoma:
         self.grasp_pose_pub = rospy.Publisher("~grasp_pose", PoseStamped, queue_size=1)
 
         planning_frame = self.move_group.get_planning_frame()
-        self.move_group.set_end_effector_link("epick_end_effector")
+        # print(f"\nplanning_frame: {planning_frame}")
         eef_link = self.move_group.get_end_effector_link() # "arm_tool0" by default, i.e. robot flange
+        # print(f"eef_link: {eef_link}")
+        self.move_group.set_end_effector_link("epick_end_effector")
+        eef_link = self.move_group.get_end_effector_link()
         group_names = self.commander.get_group_names()
 
         self.wrench_listener = rospy.Subscriber("/wrench", WrenchStamped, self.wrench_cb)
@@ -163,7 +166,7 @@ class Tahoma:
         # Misc variables
         self.planning_frame = planning_frame
         self.eef_link = eef_link
-        self.group_names = group_names
+        self.group_names = group_names        
 
         self.active_controllers = None
         self.update_running_controllers()
@@ -201,18 +204,21 @@ class Tahoma:
             coupling_h         = 0.0030
             )
         
-        self.add_pod_collision_geometry()
 
-        home_state_joint_positions = [-1.01, -0.46, -1.62, -1.05, -5.26, 3.14]  # replace with your desired joint positions
-        solution = self.compute_path(goal_config=home_state_joint_positions, startpoint='current', goal_type='joint')
-        if solution is not None:
-            path, path_time = solution
-            self.execute_path(path, full_cycle=False)
+        # self.move_to_joint_angles(joints='tote_approach', startpoint='current')
 
         # result is the same as for self.commander.get_current_state(), which is more correct because 
         # self.commader has get_current_state() function, self.move_group not
         # still, the same results - strange...
-        self.home_state = self.move_group.get_current_state() 
+        # self.home_state = self.move_group.get_current_state()
+
+        self.home_state = RobotState() # 'tote_approach' - object dropping position
+        self.home_state.joint_state.header.stamp = rospy.Time.now()
+        self.home_state.joint_state.header.frame_id = 'base_link'
+        # ['arm_shoulder_pan_joint', 'arm_shoulder_lift_joint', 'arm_elbow_joint', 'arm_wrist_1_joint', 'arm_wrist_2_joint', 'arm_wrist_3_joint']
+        self.home_state.joint_state.name = self.move_group.get_active_joints()
+        self.home_state.joint_state.position = [2.86, -1.47, 1.58, 4.75, 1.59, 4.83] # the order is the same as joint_state.name 
+        # self.move_to_joint_angles(joints=self.home_state.joint_state, startpoint='current')
 
 
     def wrench_cb(self, msg: WrenchStamped):
@@ -234,6 +240,7 @@ class Tahoma:
                 latest_status = g.status
         self.goal_finished = latest_status != GoalStatus.PENDING and latest_status != GoalStatus.ACTIVE
         self.goal_stamp = latest_time
+        # home_state_joint_positions = [-1.01, -0.46, -1.62, -1.05, -5.26, 3.14]
 
 
     def update_running_controllers(self):
@@ -253,7 +260,7 @@ class Tahoma:
                 is_active = controller.state == "running"
                 if not is_active:
                     continue
-                if self.in_sim and controller.name == JOINT_TRAJ_CONTRnOLLER_SIM:
+                if self.in_sim and controller.name == JOINT_TRAJ_CONTROLLER_SIM:
                     return True
                 elif not self.in_sim and controller.name == JOINT_TRAJ_CONTROLLER:
                     return True
@@ -367,15 +374,15 @@ class Tahoma:
     def move_to_joint_angles(self,
                            joints,
                            allowed_planning_time=10.0,
-                           execution_timeout=15.0,
+                              # home_state_joint_positions = [-1.01, -0.46, -1.62, -1.05, -5.26, 3.14]
+     execution_timeout=15.0,
                            num_planning_attempts=20,
                            plan_only=False,
                            replan=False,
                            replan_attempts=5,
                            joint_tolerance=0.01,
                            startpoint = 'home'):
-        """
-        Moves the end-effector to a pose, using motion planning.
+        """ Moves the end-effector to a pose, using motion planning.
         
         Args:
             joints: dict("joint_name":joint_value)
@@ -405,8 +412,7 @@ class Tahoma:
                              The goal joint tolerance, in radians.
         
         Returns:
-            string describing the error if an error occurred, else None.
-        """
+            string describing the error if an error occurred, else None. """
         self.move_group.stop()
 
         self.move_group.set_num_planning_attempts(num_planning_attempts)
@@ -414,9 +420,9 @@ class Tahoma:
         self.move_group.set_goal_joint_tolerance(joint_tolerance)
         self.move_group.set_planning_time(allowed_planning_time)
         if startpoint == 'home':
-            self.move_group.set_start_state(self.get_home_state())
+            self.move_group.set_start_state(self.home_state)
         else:
-            self.move_group.set_start_state(self.commander.get_current_state())
+            self.move_group.set_start_state_to_current_state()
 
         if isinstance(joints, str):
             joint_values = self.get_joint_values_for_name(joints)
@@ -514,9 +520,9 @@ class Tahoma:
         self.move_group.set_goal_position_tolerance(position_tolerance)
         self.move_group.set_goal_orientation_tolerance(orientation_tolerance)
         if startpoint == 'home':
-            self.move_group.set_start_state(self.get_home_state())
+            self.move_group.set_start_state(self.home_state)
         else:
-            self.move_group.set_start_state(self.commander.get_current_state())
+            self.move_group.set_start_state_to_current_state()
 
         success, plan, planning_time, error_code = self.move_group.plan()
         if not success:
@@ -685,8 +691,7 @@ class Tahoma:
 
 
     def compute_ik(self, pose_stamped, timeout=rospy.Duration(5)):
-        """
-        Computes inverse kinematics (joint values) for the given pose.
+        """ Computes inverse kinematics (joint values) for the given pose.
         
         Note: if you are interested in returning the IK solutions, we have
             shown how to access them.
@@ -696,13 +701,12 @@ class Tahoma:
             timeout: rospy.Duration. How long to wait before giving up on the IK solution.
         
         Returns: A list of (name, value) for the arm joints if the IK solution
-            was found, False otherwise.
-        """
+            was found, False otherwise. """
         # compute the ik solution for the robot to move to the pre-grasp pose
         request = GetPositionIKRequest()
         request.ik_request.group_name = ARM_GROUP_NAME
         # set robot state to home state each time method is run
-        request.ik_request.robot_state = self.get_home_state()
+        request.ik_request.robot_state = self.home_state
         request.ik_request.avoid_collisions = True
         request.ik_request.ik_link_name = "epick_end_effector"
         request.ik_request.pose_stamped = pose_stamped
@@ -741,12 +745,10 @@ class Tahoma:
         #     # On the other hand, there is self.move_group.get_active_joints() which gives the same result
         #     if name in self.commander.get_active_joint_names():
         #         joints.append((name, position))
-
         return joint_state
 
 
-    def compute_path(self,
-                          goal_config,
+    def compute_path(self,goal_config,
                           allowed_planning_time=10.0,
                           num_planning_attempts=20,
                           orientation_constraint=None,
@@ -798,14 +800,13 @@ class Tahoma:
         self.move_group.set_goal_position_tolerance(position_tolerance)
         self.move_group.set_goal_orientation_tolerance(orientation_tolerance)
         if startpoint == 'home':
-            self.move_group.set_start_state(self.get_home_state())
+            self.move_group.set_start_state(self.home_state)
         else:
-            self.move_group.set_start_state(self.commander.get_current_state())
-        
+            self.move_group.set_start_state_to_current_state()
         success = False
         if goal_type == 'joint':
             self.move_group.set_joint_value_target(goal_config)
-            success, plan, planning_time, error_code = self.move_group.plan()                
+            success, plan, planning_time, error_code = self.move_group.plan()            
         elif goal_type == 'pose':
             if collision_free:
                 for attempt_id in range(replan_attempts):
@@ -820,13 +821,12 @@ class Tahoma:
                 self.move_group.set_pose_target(goal_config)
                 success, plan, planning_time, error_code = self.move_group.plan()
 
+            # It is always good to clear your targets after planning with poses.
+            # Note: there is no equivalent function for clear_joint_value_targets()
+            self.move_group.clear_pose_targets()
+
         if not success:
             return None
-
-        # It is always good to clear your targets after planning with poses.
-        # Note: there is no equivalent function for clear_joint_value_targets()
-        self.move_group.clear_pose_targets()
-
         return tuple([plan, planning_time])
     
 
@@ -842,7 +842,7 @@ class Tahoma:
                         If True, executes the full cycle, i.e. returns the robot along the reversed path """
 
         ret = self.move_group.execute(path, wait=True) # Call the planner to compute the reversed path and execute it.
-        self.move_group.stop() # Calling `stop()` ensures that there is no residual movement
+        self.move_group.stop() # Calling 'stop()' ensures that there is no residual movement
 
         # print(f"\ngoal_pose_in_bin_frame:\n{goal_pose.pose}")
         if goal_pose is not None:
@@ -852,17 +852,16 @@ class Tahoma:
             current_pose = self.move_group.get_current_pose()
             # print(f"\ncurrent_pose:\n{current_pose.pose}")
             pose_diff = pose_dist(goal_in_planning_frame, current_pose)
-            print(f"poses_difference:\n\tdistance: {pose_diff[0]:2.4f} meters\n\t   angle: {pose_diff[1]:2.4f} degrees\n")
-
-        # Return the robot to original pose, i.e. reverse the path
-        path.joint_trajectory.points.reverse()
-        total_duration = path.joint_trajectory.points[0].time_from_start
-        for point in path.joint_trajectory.points:
-            point.time_from_start = total_duration - point.time_from_start # point.time_from_start is reversed, decreasing over path, while it has to increase
-            point.velocities = (np.array(point.velocities) * (-1)).tolist() # point.velocities/accelerations should be inverted to get smooth reversed path
-            point.accelerations = (np.array(point.accelerations) * (-1)).tolist()
+            print(f"\nposes_difference:\n\tdistance: {pose_diff[0]:2.4f} meters\n\t   angle: {pose_diff[1]:2.4f} degrees\n")
 
         if full_cycle:
+            # Return the robot to original pose, i.e. reverse the path
+            path.joint_trajectory.points.reverse()
+            total_duration = path.joint_trajectory.points[0].time_from_start
+            for point in path.joint_trajectory.points:
+                point.time_from_start = total_duration - point.time_from_start # point.time_from_start is reversed, decreasing over path, while it has to increase
+                point.velocities = (np.array(point.velocities) * (-1)).tolist() # point.velocities/accelerations should be inverted to get smooth reversed path
+                point.accelerations = (np.array(point.accelerations) * (-1)).tolist()
             ret = self.move_group.execute(path, wait=True) # Call the planner to compute the reversed path and execute it.
             self.move_group.stop() # Calling `stop()` ensures that there is no residual movement
 
@@ -870,10 +869,6 @@ class Tahoma:
     def wrap_angle(self, angle:float, limit:float):
         # wrap angle into range [-limit, limit)
         return (angle - limit) % (2*limit) - limit
-
-
-    def get_home_state(self):
-        return self.home_state
     
 
     def cancel_all_goals(self):
