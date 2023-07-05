@@ -118,7 +118,7 @@
     <joint name="${hand_link_name}-epick_end_effector_joint" type="fixed">
       <parent link="${hand_link_name}"/>
       <child link="epick_end_effector"/>
-      <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H + epick_end_effect_H/2}" rpy="0 0 ${0.5 * pi}"/>      
+      <origin xyz="0 0 ${robotiq_epick_dimZ - robotiq_epick_finH - robotiq_epick_earH + epick_cylinder_H + epick_end_effect_H}" rpy="0 0 ${0.5 * pi}"/>      
     </joint>
 
     <link name="epick_end_effector">
@@ -128,7 +128,7 @@
                 Also, if you need to define new color, name it differently than already defined ('WHITE' above) or you'd get the same color despite different rgba
            'collision' is necessary to consider the link for collision detection in Gazebo (RViz doesn't have collision detection) -->
       <visual>
-        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <origin xyz="0 0 ${-epick_end_effect_H/2}" rpy="0 0 0"/>
         <geometry>          
           <cylinder radius="${epick_end_effect_R}" length="${epick_end_effect_H}"/>       
         </geometry>
@@ -137,7 +137,7 @@
         </material>        
       </visual>      
       <collision>        
-        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <origin xyz="0 0 ${-epick_end_effect_H/2}" rpy="0 0 0"/>
         <geometry>          
           <cylinder radius="${epick_end_effect_R}" length="${epick_end_effect_H}"/>
         </geometry>

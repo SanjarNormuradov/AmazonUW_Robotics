@@ -16,7 +16,6 @@ print("-------------------\n")
 import math
 import random
 import std_msgs
-import visualization_msgs.msg
 import rospy
 import os
 import rospkg
@@ -25,6 +24,7 @@ import copy
 import numpy as np
 
 from smach import State
+from visualization_msgs.msg import Marker, MarkerArray 
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from gazebo_msgs.srv import SpawnModel, DeleteModel
 from gazebo_msgs.msg import LinkStates
@@ -140,7 +140,7 @@ def main(TEST_MODE:int,
         # Take into account the brace frame width for side bins
         X_OFFSET = (POD_BIN_WIDTH - POD_BRACE_FRAME_WIDTH * int((column_id % 4 == 0) or (column_id % 4 == 1))) / 2 + POD_BRACE_FRAME_WIDTH * int(column_id % 4 == 1)
         # Adjust y-offset if necessary
-        Y_OFFSET = .0
+        Y_OFFSET = -0.02
         Z_OFFSET = (pod_bin_height - POD_BIN_FLAP_HEIGHT) / 2 + POD_BIN_FLAP_HEIGHT
         
         BIN_APPROACH_POSES.append(PoseStamped(header=std_msgs.msg.Header(frame_id=frame_name), pose=Pose(position=Point(x=X_OFFSET, y=Y_OFFSET, z=Z_OFFSET), orientation=align_to_bin_quat)))
@@ -200,15 +200,19 @@ def main(TEST_MODE:int,
     # storing info variables
     # change flag to run manipulabilitytest
     reachability = True if not TEST_MODE else False
-    reachability_pub = rospy.Publisher("~/reachability", visualization_msgs.msg.MarkerArray, queue_size=1, latch=True)
-    REACHABLE_BIN_APPROACHES = [] # total poses = 572
+    reachability_pub = rospy.Publisher("~/reachability", MarkerArray, queue_size=1, latch=True)
+    REACHABLE_BIN_APPROACHES = [] # total poses = bin_random_pose_num * 4 (bins in a row) * 13 (rows)
     marker_colors = []
+    # Clear the scene from previous poses
+    marker = Marker()
+    marker.action = Marker.DELETEALL
+    reachability_pub.publish([marker, ]) 
 
     #reachability test for bin inner poses
     if (reachability):
-        print("Determining reachable bins...")
+        print("\nDetermining reachable bins...\n")
 
-        for i, pose in enumerate(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N]):
+        for i, pose in enumerate(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N]):
             row_id = i // (4 * BIN_POSE_RAND_N) + 1 + 4
             column_id = (i // BIN_POSE_RAND_N) % 4 + 1
             rand_id = i % BIN_POSE_RAND_N + 1
@@ -238,14 +242,13 @@ def main(TEST_MODE:int,
                 gripper_color = (1, 0, 0, 1)
             marker_colors.append(gripper_color)
 
-        print(len(REACHABLE_BIN_APPROACHES))
-        print(len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N]))
+        print(f"#Reachable: {len(REACHABLE_BIN_APPROACHES)} / {len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N])}")
 
-        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N])
-        print("Reachability Score : " + str(ratio * 100))
+        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N])
+        print("Reachability Score: " + str(ratio * 100))
 
-        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N:8*4*BIN_POSE_RAND_N], marker_colors))
-        # return (ratio * 100)
+        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N], marker_colors))
+        return (ratio * 100)
 
     # manipulability test for bin approach poses
     else :
@@ -298,8 +301,8 @@ def main(TEST_MODE:int,
         reachability_pub.publish(create_gripper_pose_markers(BIN_APPROACH_POSES, marker_colors))
 
 
-    print("Published visualization data. Spinning to keep topic open.")
-    rospy.spin() 
+    # print("Published visualization data. Spinning to keep topic open.")
+    # rospy.spin() 
 
 def sgn(x):
     if x < 0:
@@ -347,28 +350,41 @@ def pod_pose_sub_callback(TFmessage):
     return transform"""
 
 
-def spawn_model(model_name='pod', x=0.632, y=0.4125, id=1):
+def spawn_model(model_name='pod', x=0.632, y=0.4125, pod_id=1):
     # load xacro file and parse it
     rospack = rospkg.RosPack()
     xacro_path = os.path.join(rospack.get_path('aurmr_gazebo'), 'robots', 'pod.gazebo.xacro')
     doc = xacro.parse(open(xacro_path))
-    xacro.process_doc(doc, in_order=True, params={'id': str(id)})
+    xacro.process_doc(doc, in_order=True, params={'id': str(pod_id)})
     model_description = doc.toprettyxml(indent='  ')
 
-    # spawn model in gazebo
-    rospy.wait_for_service('gazebo/spawn_urdf_model')
-    spawn_model_prox = rospy.ServiceProxy('gazebo/spawn_urdf_model', SpawnModel)
+    try:    
+        # spawn model in gazebo
+        rospy.wait_for_service('gazebo/spawn_urdf_model')
+        spawn_model_prox = rospy.ServiceProxy('gazebo/spawn_urdf_model', SpawnModel)
 
-    pose = Pose()
-    pose.position.x = x
-    pose.position.y = y
-    pose.position.z = 0.0
-    pose.orientation.x = 0.0
-    pose.orientation.y = 0.0
-    pose.orientation.z = -0.706825181105366
-    pose.orientation.w = 0.7073882691671998
+        pose = Pose()
+        pose.position.x = x
+        pose.position.y = y
+        pose.position.z = 0.0
+        pose.orientation.x = 0.0
+        pose.orientation.y = 0.0
+        pose.orientation.z = -0.706825181105366
+        pose.orientation.w = 0.7073882691671998
 
-    spawn_model_prox(model_name, model_description, 'aurmr_gazebo', pose, 'world')
+        response = spawn_model_prox(model_name, model_description, 'aurmr_gazebo', pose, 'world')
+        if response.success:
+            print(f"Successfully spawned model {model_name}")
+        else:
+            print(f"Failed to spawn model {model_name}: {response.status_message}")
+
+    # ServiceException (unavailable service, communication erros)
+    # ROSSerializationException (invalid model name)
+    # Gazebo errors (delete model that doesn't exist or has already been deleted)
+    except rospy.service.ServiceException as e: 
+        print(f"Service call failed: {e}")
+    except Exception as e: # General exceptions, such as ROSInterruptException when the node is shut down while waiting for the service
+        print(f"An unexpected error occurred: {e}")
 
     # broadcast static tf
     broadcaster = StaticTransformBroadcaster()
@@ -410,18 +426,14 @@ def delete_model(model_name='pod'):
 # robot position relative to bin gets hardcoded in fc.launch file
 if __name__ == '__main__':
     rospy.init_node("analyze_workspace")
-    # print("Spawning pod...")
-    # spawn_pod()
     rospy.loginfo('Getting robot resources')
     simulation = rospy.get_param("/use_sim_time", False)
     State.simulation = simulation
     robot = Tahoma(simulation)
+    pod_pose_sub = rospy.Subscriber('/tf_static', TFMessage, pod_pose_sub_callback)
 
-    print("Spawning pod...")
-    spawn_model()
-    rospy.sleep(1)
-    robot.add_pod_collision_geometry()
 
+    print("Getting parameters(test_mode, random_pose_number, RPY, ssl)...")
     test_mode = rospy.get_param("~test_mode", 0) # test_mode = 0: Reachibility | test_mode = 1: Manipulability
     bin_pose_randN = rospy.get_param("~bin_pose_randN", 2) # Number of random pre-grasp poses for each bin
     dRoll = rospy.get_param("~dRoll", 8) # Roll change (overall) in random pre-grasp pose generation (degrees)
@@ -445,39 +457,53 @@ if __name__ == '__main__':
     goal_type = rospy.get_param("~goal_type", 'pose') 
     vis_path = rospy.get_param("~vis_path", False) # vis_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose
 
+    pod_id = rospy.get_param("~pod_id", 1)
+    # Pod positon in centimeters
+    xStart = rospy.get_param("~x_start", 60)
+    xStop = rospy.get_param("~x_stop", 70)
+    xStep = rospy.get_param("~x_step", 10)
+    yStart = rospy.get_param("~y_start", 41)
+    yStop = rospy.get_param("~y_stop", 51)
+    yStep = rospy.get_param("~y_step", 10)
 
-    pod_pose_sub = rospy.Subscriber('/tf_static', TFMessage, pod_pose_sub_callback)
+    rospack = rospkg.RosPack()
+    file_path = rospack.get_path('aurmr_tasks') + f'/scripts/successScores_{xStart}-{xStop-1}_{yStart}-{yStop-1}.txt'
+    try:
+        with open(file_path, 'w') as file:
+            for pod_x in range(xStart, xStop, xStep):
+                for pod_y in range(yStart, yStop, yStep):
+                    print("Spawning model...")
+                    spawn_model(model_name='pod', x=pod_x/1000, y=pod_y/1000, pod_id=1)
+                    rospy.sleep(1)
+                    robot.add_pod_collision_geometry()
+                    robot.move_to_joint_angles(joints=robot.home_state.joint_state, startpoint='current')
+                
+                    score = main(TEST_MODE=test_mode, 
+                                    BIN_POSE_RAND_N=bin_pose_randN, 
+                                    dRoll=dRoll, dPitch=dPitch, dYaw=dYaw, 
+                                    SSL=int(SSL), vis_path=vis_path, 
+                                    planning_attempts=planning_attempts, 
+                                    planning_time=planning_time, 
+                                    replan_attempts=replan_attempts, 
+                                    joint_tolerance=joint_tolerance,
+                                    position_tolerance=position_tolerance,
+                                    orientation_tolerance=orientation_tolerance,
+                                    goal_type=goal_type)
+                    file.write(f"[{(pod_x / 1000):5.3f}, {(pod_y / 1000):5.3f}] : {score:7.4f}\n")
+                    file.flush()  # Ensure the data is written to the file
+                    os.fsync(file.fileno()) # Ensure the data is flushed to disk
 
-    # Pod positon in centimeters, won't work as pod pose already set by launch file
-    # xStart = 60
-    # xStop = 81
-    # xStep = 5
-    # yStart = 41
-    # yStop = 46
-    # yStep = 5
-    # with open('successScores.txt', 'a') as file:
-    #     for x in range(xStart, xStop, xStep):
-    #         for y in range(yStart, yStop, yStep):
-    #             tf_msg = TFMessage()
-    #             tf_msg.transforms.append(transform_msg(x / 100, y / 100))
-    #             podPose_pub.publish(tf_msg)rospy.init_node('set_joint_configuration_node', anonymous=True)
-    #             file.write(str(x / 100) + " " + str(y / 100) + " ")
-    #             file.write(str(round(main(), 4)) + "\n")
-    
+                    print("Deleting model...")
+                    delete_model(model_name='pod')
+                    rospy.sleep(1)
+    except Exception as e:
+        print(f"Failed to write to file: {e}")
+
+    rospy.signal_shutdown('Shut down all nodes to stop launch file execution')
     # Tested Currently
     # pod_x = rospy.get_param('pod_x')
     # pod_y = rospy.get_param('pod_y')
     # with open('successScores.txt', 'a') as file:
     #     file.write(str(pod_x) + " " + str(pod_y) + " " + str(round(main(), 4)) + "\n")
 
-    main(TEST_MODE=test_mode, 
-         BIN_POSE_RAND_N=bin_pose_randN, 
-         dRoll=dRoll, dPitch=dPitch, dYaw=dYaw, 
-         SSL=int(SSL), vis_path=True, 
-         planning_attempts=planning_attempts, 
-         planning_time=planning_time, 
-         replan_attempts=replan_attempts, 
-         joint_tolerance=joint_tolerance,
-         position_tolerance=position_tolerance,
-         orientation_tolerance=orientation_tolerance,
-         goal_type=goal_type)
+

@@ -14,27 +14,26 @@
 
   <arg name="test_mode"      default="0"  doc="test_mode = 0: Reachibility | test_mode = 1: Manipulability" />
   <arg name="bin_pose_randN" default="10" doc="Number of random pre-grasp poses for each bin" />
-  <arg name="ssl"            default="0"        
-       doc="SSL =      1: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to atan2(pod_bin_height(or _width), pod_bin_length)
-            SSL =      0: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
-            SSL = 0 or 1: if dRoll(or dPitch) < atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)" />
+  <!-- SSL =      1: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to atan2(pod_bin_height(or _width), pod_bin_length)
+       SSL =      0: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
+       SSL = 0 or 1: if dRoll(or dPitch) < atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch) -->
+  <arg name="ssl"            default="0"  doc="" />
 
   <arg name="dRoll"  default="8"   doc="Roll change (overall) in random pre-grasp pose generation (degrees). Roll and Yaw are flipped" />
   <arg name="dPitch" default="8"   doc="Pitch change (overall) in random pre-grasp pose generation (degrees)" />
   <arg name="dYaw"   default="720" doc="Yaw change (overall) in random pre-grasp pose generation (degrees)" />
 
-  <arg name="planning_attempts"     default="10"     doc="Number of planning attempts for each pre-graps pose joint configuration" />
-  <arg name="planning_time"         default="10.0"         doc="Allowed planning time, in seconds" />
-  <arg name="replan_attempts"       default="5"       doc="Number of attempts to compute joint configuration (IK) for each pre-graps pose" />
-  <arg name="joint_tolerance"       default="0.001"       doc="Target pose joint values tolerance, in ?" />
-  <arg name="position_tolerance"    default="0.001"    doc="Target pose position values tolerance, in meters" />
+  <arg name="planning_attempts"     default="10"    doc="Number of planning attempts for each pre-graps pose joint configuration" />
+  <arg name="planning_time"         default="10.0"  doc="Allowed planning time, in seconds" />
+  <arg name="replan_attempts"       default="5"     doc="Number of attempts to compute joint configuration (IK) for each pre-graps pose" />
+  <arg name="joint_tolerance"       default="0.001" doc="Target pose joint values tolerance, in ?" />
+  <arg name="position_tolerance"    default="0.001" doc="Target pose position values tolerance, in meters" />
   <arg name="orientation_tolerance" default="0.001" doc="Target pose orientation values tolerance, in radians" />
 
-  <arg name="goal_type" default="pose" 
-       doc="goal_type:  'pose'  - MoveIt would try to compute path for given pose (collision avoidance not guaranteed)
-                        'joint' - MoveIt would try to compute path for given joint configuration (collision avoidance guaranteed)" />
-  <arg name="vis_path"  default="False" 
-       doc="is_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose" />
+  <!-- goal_type:  'pose'  - MoveIt would try to compute path for given pose (collision avoidance not guaranteed)
+                   'joint' - MoveIt would try to compute path for given joint configuration (collision avoidance guaranteed) -->
+  <arg name="goal_type" default="pose"  doc="" />
+  <arg name="vis_path"  default="False" doc="is_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose" />
 
 
   <arg name="use_sim_time" default="true"  doc="" />
@@ -90,7 +89,7 @@
 
   <!-- Start up 'analyze_workspace' node and run python file where the same node is initialized and pod spawned -->
   <node pkg="aurmr_tasks" type="analyze_workspace" name="analyze_workspace" output="screen">
-      <param name="pod_id"  value="$(arg pod_id)" doc="Pod type" />
+      <param name="pod_id"  value="$(arg pod_id)" />
 
       <param name="x_start" value="$(arg x_start)" />
       <param name="x_stop"  value="$(arg x_stop)" />
@@ -99,29 +98,23 @@
       <param name="y_stop"  value="$(arg y_stop)" />
       <param name="y_step"  value="$(arg y_step)" />
 
-      <param name="test_mode"      value="$(arg test_mode)"      doc="test_mode = 0: Reachibility | test_mode = 1: Manipulability" />
-      <param name="bin_pose_randN" value="$(arg bin_pose_randN)" doc="Number of random pre-grasp poses for each bin" />
-      <param name="ssl"            value="$(arg ssl)"        
-             doc="SSL =      1: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to atan2(pod_bin_height(or _width), pod_bin_length)
-                  SSL =      0: if dRoll(or dPitch) > atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)
-                  SSL = 0 or 1: if dRoll(or dPitch) < atan2(pod_bin_height(or _width), pod_bin_length), then max_angle is set to dRoll(or dPitch)" />
+      <param name="test_mode"      value="$(arg test_mode)" />
+      <param name="bin_pose_randN" value="$(arg bin_pose_randN)" />
+      <param name="ssl"            value="$(arg ssl)" />
 
-      <param name="dRoll"  value="$(arg dRoll)"  doc="Roll change (overall) in random pre-grasp pose generation (degrees). Roll and Yaw are flipped" />
-      <param name="dPitch" value="$(arg dPitch)" doc="Pitch change (overall) in random pre-grasp pose generation (degrees)" />
-      <param name="dYaw"   value="$(arg dYaw)"   doc="Yaw change (overall) in random pre-grasp pose generation (degrees)" />
+      <param name="dRoll"  value="$(arg dRoll)" />
+      <param name="dPitch" value="$(arg dPitch)" />
+      <param name="dYaw"   value="$(arg dYaw)" />
 
-      <param name="planning_attempts"     value="$(arg planning_attempts)"     doc="Number of planning attempts for each pre-graps pose joint configuration" />
-      <param name="planning_time"         value="$(arg planning_time)"         doc="Allowed planning time, in seconds" />
-      <param name="replan_attempts"       value="$(arg replan_attempts)"       doc="Number of attempts to compute joint configuration (IK) for each pre-graps pose" />
-      <param name="joint_tolerance"       value="$(arg joint_tolerance)"       doc="Target pose joint values tolerance, in ?" />
-      <param name="position_tolerance"    value="$(arg position_tolerance)"    doc="Target pose position values tolerance, in meters" />
-      <param name="orientation_tolerance" value="$(arg orientation_tolerance)" doc="Target pose orientation values tolerance, in radians" />
+      <param name="planning_attempts"     value="$(arg planning_attempts)" />
+      <param name="planning_time"         value="$(arg planning_time)" />
+      <param name="replan_attempts"       value="$(arg replan_attempts)" />
+      <param name="joint_tolerance"       value="$(arg joint_tolerance)" />
+      <param name="position_tolerance"    value="$(arg position_tolerance)" />
+      <param name="orientation_tolerance" value="$(arg orientation_tolerance)" />
 
-      <param name="goal_type" value="$(arg goal_type)" 
-             doc="goal_type:  'pose'  - MoveIt would try to compute path for given pose (collision avoidance not guaranteed)
-                              'joint' - MoveIt would try to compute path for given joint configuration (collision avoidance guaranteed)" />
-      <param name="vis_path"  value="$(arg vis_path)" 
-             doc="is_path = True: Visualize path from 'home' pose to pre-grasp pose. 'home' - gripped object drop pose" />
+      <param name="goal_type" value="$(arg goal_type)" />
+      <param name="vis_path"  value="$(arg vis_path)" />
   </node>
 
   <!-- <include file="$(find aurmr_gazebo)/launch/include/spawn_pod.xml" if="$(eval pod_id > 0)">
