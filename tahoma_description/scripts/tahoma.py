@@ -171,21 +171,50 @@ class Tahoma:
         self.active_controllers = None
         self.update_running_controllers()
 
-        pod_bin_heights_inch = [8.75, 5.5, 7.5, 6, 4.5, 8.75, 5, 6, 5, 8.75, 5, 6, 11]
+        # Wrong pod1_bin_heights_inch! Where did you get them??? 
+        # Official Amazon recipe has different numbers (in mm)!!!
+        # pod1_bin_heights_inch = [8.75, 5.5, 7.5, 6, 4.5, 8.75, 5, 6, 5, 8.75, 5, 6, 11]
+        
+        # pod1_bin_heights_mm are from pod1_recipe_790-00265-021_2.txt "bindDimensions" : A1-A13
+        # "ligHeight" : 26, but in reality 32
+        pod1_bin_heights_mm = [223, 146, 197, 146, 121, 223, 121, 146, 121, 223, 121, 146, 261]
+
+        # pod2_bin_heights_mm are from pod2_recipe_790-00265-022_2.txt "bindDimensions" : A1-A8
+        # Original Values: [346, 295, 244, 219, 244, 269, 320, 257]
+        # with minor updates to correspond the reality
+        # "ligHeight" : 26, but in reality 32
+        pod2_bin_heights_mm = [346, 295, 250, 225, 250, 275, 325, 275]
+
         self.pod_sizes = dict(
-            pod_brace_frame_width = 0.033,
-            pod_base_frame_width = 0.041,
-            pod_base_to_brace_XY_offset = 0.010,
-            pod_base_width = 0.9398,
-            pod_brace_width = 0.9188,
-            pod_base_height  = 0.295,
-            pod_brace_height  = 2.311,
-            pod_brace_frame_thickness = 0.005,
-            pod_bin_heights = [height * 0.0254 for height in pod_bin_heights_inch],
-            pod_bin_depth = 0.1524,
-            pod_bin_wall_thickness = 0.002,
-            pod_bin_bottom_thickness = 0.006,
-            pod_bin_flap_height = 0.0254
+            pod1_brace_frame_width = 0.033,
+            pod1_base_frame_width = 0.041,
+            pod1_base_to_brace_XY_offset = 0.010,
+            pod1_base_width = 0.9398,
+            pod1_brace_width = 0.9188,
+            pod1_base_height  = 0.295, # Real value 0.257
+            pod1_brace_height  = 2.311,
+            pod1_brace_frame_thickness = 0.005,
+            pod1_bin_heights = pod1_bin_heights_mm,
+            pod1_bin_depth = 0.152,
+            pod1_bin_width = 0.9188 / 4,
+            pod1_bin_wall_thickness = 0.002,
+            pod1_bin_bottom_thickness = 0.007, # 5mm + 2mm
+            pod1_bin_flap_height = 0.032,
+
+            pod2_brace_frame_width = 0.033,
+            pod2_base_frame_width = 0.041,
+            pod2_base_to_brace_XY_offset = 0.010,
+            pod2_base_width = 0.9398,
+            pod2_brace_width = 0.9188,
+            pod2_base_height  = 0.295, # Real value 0.257
+            pod2_brace_height  = 2.311,
+            pod2_brace_frame_thickness = 0.005,
+            pod2_bin_heights = pod2_bin_heights_mm,
+            pod2_bin_depth = 0.356,
+            pod2_bin_width = 0.9188 / 3,
+            pod2_bin_wall_thickness = 0.002,
+            pod2_bin_bottom_thickness = 0.009, # 7mm + 2mm
+            pod2_bin_flap_height = 0.032
             )
         
         self.end_effector = dict(
@@ -881,18 +910,22 @@ class Tahoma:
         self.scene.clear() # There is no such function as moveit_commander.planning_scene_interface.PlanningSceneInterface.clear() aka scene.clear(), but this function works!
 
 
-    def add_pod_collision_geometry(self):
+    def add_pod_collision_geometry(self, pod_id=1):
         '''
-        Includes collision boxes for each bin into MoveIt planning scene
+        Includes collision boxes for each bin into MoveIt planning scene depending on pod's ID
+        pod_id = 1: pod of 13x4 small bins
+        pod_id = 2: pod of 8x3 large bins
         '''
-        POD_BRACE_WIDTH = self.pod_sizes["pod_brace_width"]
-        POD_BINS_HEIGHT = sum(self.pod_sizes["pod_bin_heights"])
-        POD_BRACE_FRAME_WIDTH = self.pod_sizes["pod_brace_frame_width"]
-        POD_BRACE_FRAME_THICKNESS = self.pod_sizes["pod_brace_frame_thickness"]
-        POD_BIN_DEPTH = self.pod_sizes["pod_bin_depth"]
-        POD_BIN_WALL_THICKNESS = self.pod_sizes["pod_bin_wall_thickness"]
-        POD_BIN_BOTTOM_THICKNESS = self.pod_sizes["pod_bin_bottom_thickness"]
-        POD_BIN_FLAP_HEIGHT = self.pod_sizes["pod_bin_flap_height"] # 1 inch = 2.54 cm
+        POD_BRACE_WIDTH = self.pod_sizes[f"pod{pod_id}_brace_width"]
+        POD_BIN_WIDTH = self.pod_sizes[f"pod{pod_id}_bin_width"]
+        POD_BINS_HEIGHT = sum(self.pod_sizes[f"pod{pod_id}_bin_heights"])
+        POD_BRACE_FRAME_WIDTH = self.pod_sizes[f"pod{pod_id}_brace_frame_width"]
+        POD_BRACE_FRAME_THICKNESS = self.pod_sizes[f"pod{pod_id}_brace_frame_thickness"]
+        POD_BIN_DEPTH = self.pod_sizes[f"pod{pod_id}_bin_depth"]
+        POD_BIN_WALL_THICKNESS = self.pod_sizes[f"pod{pod_id}_bin_wall_thickness"]
+        POD_BIN_BOTTOM_THICKNESS = self.pod_sizes[f"pod{pod_id}_bin_bottom_thickness"]
+        POD_BIN_FLAP_HEIGHT = self.pod_sizes[f"pod{pod_id}_bin_flap_height"]
+        NUM_COLUMNS = int(POD_BRACE_WIDTH / POD_BIN_WIDTH)
 
         X_AXIS_QUAT = Quaternion(x=0, y=0, z=0, w=1)
 
@@ -902,14 +935,14 @@ class Tahoma:
 
         # SETUP POD BIN'S COLLISION BOXES
         # COLUMNS
-        for i in range(5):
+        for i in range(NUM_COLUMNS + 1):
             self.scene.add_box(f"col_{i+1:02d}", PoseStamped(header=std_msgs.msg.Header(frame_id="pod_fabric_base"),
-                                                 pose=Pose(position=Point(x=i/4*POD_BRACE_WIDTH, 
+                                                 pose=Pose(position=Point(x=i*POD_BIN_WIDTH, 
                                                                           y=1/2*POD_BIN_DEPTH, 
                                                                           z=1/2*POD_BINS_HEIGHT), orientation=X_AXIS_QUAT)), 
                                                  (POD_BIN_WALL_THICKNESS, POD_BIN_DEPTH, POD_BINS_HEIGHT))
         # ROWS
-        POD_BIN_Z_OFFSET_LIST = [0.0] + self.pod_sizes["pod_bin_heights"]
+        POD_BIN_Z_OFFSET_LIST = [0.0] + self.pod_sizes[f"pod{pod_id}_bin_heights"]
         POD_BIN_NUM = len(POD_BIN_Z_OFFSET_LIST)
         POD_BIN_Z_OFFSET = 0
         for POD_BIN_ID, POD_BIN_HEIGHT in enumerate(POD_BIN_Z_OFFSET_LIST, start=1):

@@ -3,15 +3,16 @@
   <xacro:macro name="pod" params="prefix recipe_a">
     <xacro:arg name="prefix" default="pod_"/>
     <xacro:arg name="recipe_a" default="[]"/> <!-- bin heights in inches -->
-    <xacro:property name="IN_TO_M" value="0.0254"/>
     <xacro:property name="POD_BASE_WIDTH" value="0.9398"/>
     <xacro:property name="POD_BASE_HEIGHT" value="0.295"/>
     <xacro:property name="POD_BRACE_WIDTH" value="0.9188"/>
     <xacro:property name="POD_BRACE_HEIGHT" value="2.311"/>
-    <xacro:property name="POD_BIN_DEPTH" value="0.1524"/>
+    <xacro:property name="POD_BASE_TO_BRACE_XY_OFFSET" value="0.010"/>
+    <xacro:property name="POD_BASE_TO_BRACE_Z_OFFSET" value="0.035"/>
+    <xacro:property name="POD_BIN_DEPTH" value="0.356"/>
     <xacro:property name="POD_BIN_WALL_THICKNESS" value="0.002"/>
-    <xacro:property name="POD_BIN_BOTTOM_THICKNESS" value="0.006"/>
-    <xacro:property name="POD_BIN_FLAP_HEIGHT" value="${1 * IN_TO_M}"/> <!-- 1 inch -->
+    <xacro:property name="POD_BIN_BOTTOM_THICKNESS" value="0.009"/>
+    <xacro:property name="POD_BIN_FLAP_HEIGHT" value="0.032"/> <!-- supposedly 1 inch, but in reality 32 mm -->
     <xacro:property name="alphabet" value="abcdefghijklmnopqrstuvwxyz"/>
 
     <material name="yellow_fabric">
@@ -43,7 +44,7 @@
 
     <link name="${prefix}brace"/>
     <joint name="${prefix}base_link_${prefix}brace_joint" type="fixed">
-      <!-- z = 0.295 -->
+      <!-- z = 0.295 in .stl file, but in reality is 0.257 -->
       <origin xyz="0 0 ${POD_BASE_HEIGHT}"/>
       <parent link="${prefix}base_link"/>
       <child link="${prefix}brace"/>
@@ -51,7 +52,7 @@
 
     <link name="${prefix}fabric_base"/>
     <joint name="${prefix}brace_${prefix}fabric_base_joint" type="fixed">
-      <origin xyz="0.01 0.01 .045"/>
+      <origin xyz="${POD_BASE_TO_BRACE_XY_OFFSET} ${POD_BASE_TO_BRACE_XY_OFFSET} ${POD_BASE_TO_BRACE_Z_OFFSET}"/>
       <parent link="${prefix}brace"/>
       <child link="${prefix}fabric_base"/>
     </joint>
@@ -145,16 +146,16 @@
       </xacro:if>
     </xacro:macro>
 
-    <xacro:macro name="shelf" params="prefix:=^ id sections:=4 width:=${POD_BRACE_WIDTH} height depth:=${POD_BIN_DEPTH}">
+    <xacro:macro name="shelf" params="prefix:=^ id sections:=3 width:=${POD_BRACE_WIDTH} height depth:=${POD_BIN_DEPTH}">
       <xacro:property name="shelf_name" value="${prefix}shelf_${id}"/>
 
       <link name="${shelf_name}"/>
-      <xacro:bin_row id="${id}" parent="${shelf_name}" sections="${sections}" width="${width / 4}"
+      <xacro:bin_row id="${id}" parent="${shelf_name}" sections="${sections}" width="${width / 3}"
                      height="${height}" depth="${depth}"/>
     </xacro:macro>
 
     <xacro:macro name="shelf_stack" params="prefix:=^ parent recipe offset:=0 width:=${POD_BRACE_WIDTH} depth:=${POD_BIN_DEPTH} i:=0">
-      <xacro:property name="shelf_height" value="${recipe[0] * IN_TO_M}"/>
+      <xacro:property name="shelf_height" value="${recipe[0]}"/>
       <xacro:property name="shelf_name" value="${prefix}shelf_${alphabet[i]}"/>
       <xacro:shelf prefix="${prefix}" id="${alphabet[i]}" width="${width}" height="${shelf_height}" depth="${depth}"/>
       <joint name="${parent}_${shelf_name}_joint" type="fixed">

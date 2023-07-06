@@ -19,7 +19,7 @@
   <xacro:macro name="color_pod_fabric" params="prefix">
     <xacro:arg name="prefix" default=""/>
 
-    <xacro:property name="recipe_a" value="${[0,0,0,0,0,0,0,0,0,0,0,0,0]}"/>
+    <xacro:property name="recipe_a" value="${[0,0,0,0,0,0,0,0]}"/>
     <xacro:property name="alphabet" value="abcdefghijklmnopqrstuvwxyz"/>
 
     <xacro:macro name="shifted_box" params="name">
@@ -49,7 +49,7 @@
       </xacro:if>
     </xacro:macro>
 
-    <xacro:macro name="shelf" params="prefix:=^ sections:=4 id">
+    <xacro:macro name="shelf" params="prefix:=^ sections:=3 id">
       <xacro:property name="shelf_name" value="${prefix}shelf_${id}"/>
 
       <xacro:bin_row id="${id}" parent="${shelf_name}" sections="${sections}"/>

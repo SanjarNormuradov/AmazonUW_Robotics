@@ -43,6 +43,7 @@ from aurmr_tasks.src.aurmr_tasks.pod import BIN_IDS
 
 
 def main(TEST_MODE:int, 
+         pod_id:int,
          BIN_POSE_RAND_N:int, 
          dRoll:float, dPitch:float, dYaw:float, 
          SSL:int, vis_path:bool, 
@@ -69,14 +70,14 @@ def main(TEST_MODE:int,
     # dRoll = dRoll/2 if dRoll != 0 else 0.001
     # # Redefine dRoll to use sampling weight function (sigmoids)
     # dPitch = dPitch/2 if dPitch != 0 else 0.001
-
-    POD_BIN_HEIGHTS = robot.pod_sizes["pod_bin_heights"]
-    POD_BIN_FLAP_HEIGHT = robot.pod_sizes["pod_bin_flap_height"]
-    POD_BIN_WIDTH = robot.pod_sizes["pod_brace_width"] / 4
+    POD_BIN_HEIGHTS = robot.pod_sizes[f"pod{pod_id}_bin_heights"]
+    POD_BIN_FLAP_HEIGHT = robot.pod_sizes[f"pod{pod_id}_bin_flap_height"]
+    POD_BIN_WIDTH = robot.pod_sizes[f"pod{pod_id}_bin_width"]
     POD_BIN_WALL_THICKNESS = robot.pod_sizes["pod_bin_wall_thickness"]
     POD_BIN_BOTTOM_THICKNESS = robot.pod_sizes["pod_bin_bottom_thickness"]
     POD_BIN_LENGTH = robot.pod_sizes["pod_bin_depth"]
     POD_BRACE_FRAME_WIDTH = robot.pod_sizes["pod_brace_frame_width"]
+    NUM_COLUMNS = int(robot.pod_sizes[f"pod{pod_id}_brace_width"] / POD_BIN_WIDTH)
     pod_bin_row_id = 0
 
     EEF_RADIUS = robot.end_effector["epick_end_effect_R"]
@@ -134,18 +135,18 @@ def main(TEST_MODE:int,
 
         # Use different heights for bins in different rows
         pod_bin_height = POD_BIN_HEIGHTS[pod_bin_row_id]
-        pod_bin_row_id += 1 if column_id % 4 == 0 else 0
+        pod_bin_row_id += 1 if column_id % NUM_COLUMNS == 0 else 0
 
         # Set initial pose at the center* (pod height - pod flap height) of each (x,z) bin with perpendicular orientation (quat)
         # Take into account the brace frame width for side bins
-        X_OFFSET = (POD_BIN_WIDTH - POD_BRACE_FRAME_WIDTH * int((column_id % 4 == 0) or (column_id % 4 == 1))) / 2 + POD_BRACE_FRAME_WIDTH * int(column_id % 4 == 1)
+        X_OFFSET = (POD_BIN_WIDTH - POD_BRACE_FRAME_WIDTH * int((column_id % NUM_COLUMNS == 0) or (column_id % NUM_COLUMNS == 1))) / 2 + POD_BRACE_FRAME_WIDTH * int(column_id % NUM_COLUMNS == 1)
         # Adjust y-offset if necessary
         Y_OFFSET = -0.02
         Z_OFFSET = (pod_bin_height - POD_BIN_FLAP_HEIGHT) / 2 + POD_BIN_FLAP_HEIGHT
         
         BIN_APPROACH_POSES.append(PoseStamped(header=std_msgs.msg.Header(frame_id=frame_name), pose=Pose(position=Point(x=X_OFFSET, y=Y_OFFSET, z=Z_OFFSET), orientation=align_to_bin_quat)))
 
-        if column_id % 4 == 1:
+        if column_id % NUM_COLUMNS == 1:
             # Set bin's height once for each row
             pod_bin_half_height = (pod_bin_height - POD_BIN_BOTTOM_THICKNESS - 2 * EEF_RADIUS - POD_BIN_FLAP_HEIGHT)/2
             # positions_z = np.arange(start=-pod_bin_half_height, stop=pod_bin_half_height, step=2*UR16e_POSE_REPEATABILITY) / pod_bin_half_height
@@ -157,7 +158,7 @@ def main(TEST_MODE:int,
 
         # # Generate random set of x with given weights position_sampling_weights_x over given range positions_x_side_bin/positions_x_midl_bin
         # # Don't forget to multiply to pod_side_bin_half_width/pod_midl_bin_half_width as range positions_x_side_bin/positions_x_midl_bin lies within [-1, 1]
-        # if (column_id % 4 == 0) or (column_id % 4 == 1):
+        # if (column_id % NUM_COLUMNS == 0) or (column_id % NUM_COLUMNS == 1):
         #     rand_positions_x = np.random.choice(positions_x_side_bin, size=BIN_POSE_RAND_N, p=position_sampling_weights_x[0])
         # else:
         #     rand_positions_x = np.random.choice(positions_x_midl_bin, size=BIN_POSE_RAND_N, p=position_sampling_weights_x[1])
@@ -170,10 +171,10 @@ def main(TEST_MODE:int,
         # rand_orientation_pitch = ORIENTATION_SAMPLING_FUNC(rand_positions_x, dPitch) * dPitch * np.pi / 180
         # rand_orientation_roll  = ORIENTATION_SAMPLING_FUNC(rand_positions_z, dRoll ) * dRoll * np.pi / 180
         # # Don't forget to scale rand positions to given max size (positions_x_side_bin/positions_x_midl_bin, pod_bin_half_height) as they lie within [-1, 1]
-        # rand_positions_x *= pod_side_bin_half_width if ((column_id % 4 == 0) or (column_id % 4 == 1)) else pod_midl_bin_half_width
+        # rand_positions_x *= pod_side_bin_half_width if ((column_id % NUM_COLUMNS == 0) or (column_id % NUM_COLUMNS == 1)) else pod_midl_bin_half_width
         # rand_positions_z *= pod_bin_half_height
 
-        if (column_id % 4 == 0) or (column_id % 4 == 1):
+        if (column_id % NUM_COLUMNS == 0) or (column_id % NUM_COLUMNS == 1):
             rand_positions_x = np.random.uniform(low=-pod_side_bin_half_width, high=pod_side_bin_half_width, size=BIN_POSE_RAND_N)
             max_pos_pitch = MAX_ANGLE_POS(rand_positions_x/pod_side_bin_half_width, dPitch, pod_side_bin_half_width)
             max_neg_pitch = MAX_ANGLE_NEG(rand_positions_x/pod_side_bin_half_width, dPitch, pod_side_bin_half_width)
@@ -201,7 +202,7 @@ def main(TEST_MODE:int,
     # change flag to run manipulabilitytest
     reachability = True if not TEST_MODE else False
     reachability_pub = rospy.Publisher("~/reachability", MarkerArray, queue_size=1, latch=True)
-    REACHABLE_BIN_APPROACHES = [] # total poses = bin_random_pose_num * 4 (bins in a row) * 13 (rows)
+    REACHABLE_BIN_APPROACHES = [] # total poses = bin_random_pose_num * NUM_COLUMNS (bins in a row) * 13 (rows) [for pod_id=1, or 8 rows for pod_id=2]
     marker_colors = []
     # Clear the scene from previous poses
     marker = Marker()
@@ -212,9 +213,9 @@ def main(TEST_MODE:int,
     if (reachability):
         print("\nDetermining reachable bins...\n")
 
-        for i, pose in enumerate(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N]):
-            row_id = i // (4 * BIN_POSE_RAND_N) + 1 + 4
-            column_id = (i // BIN_POSE_RAND_N) % 4 + 1
+        for i, pose in enumerate(BIN_INNER_POSES[4*NUM_COLUMNS*BIN_POSE_RAND_N : 8*NUM_COLUMNS*BIN_POSE_RAND_N]):
+            row_id = i // (NUM_COLUMNS * BIN_POSE_RAND_N) + 1 + 4
+            column_id = (i // BIN_POSE_RAND_N) % NUM_COLUMNS + 1
             rand_id = i % BIN_POSE_RAND_N + 1
             # solution = robot.compute_ik(pose, rospy.Duration(0))
             solution = robot.compute_path(pose, allowed_planning_time=planning_time,
@@ -242,12 +243,12 @@ def main(TEST_MODE:int,
                 gripper_color = (1, 0, 0, 1)
             marker_colors.append(gripper_color)
 
-        print(f"#Reachable: {len(REACHABLE_BIN_APPROACHES)} / {len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N])}")
+        print(f"#Reachable: {len(REACHABLE_BIN_APPROACHES)} / {len(BIN_INNER_POSES[4*NUM_COLUMNS*BIN_POSE_RAND_N : 8*NUM_COLUMNS*BIN_POSE_RAND_N])}")
 
-        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N])
+        ratio = len(REACHABLE_BIN_APPROACHES)/len(BIN_INNER_POSES[4*NUM_COLUMNS*BIN_POSE_RAND_N : 8*NUM_COLUMNS*BIN_POSE_RAND_N])
         print("Reachability Score: " + str(ratio * 100))
 
-        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES[4*4*BIN_POSE_RAND_N : 8*4*BIN_POSE_RAND_N], marker_colors))
+        reachability_pub.publish(create_gripper_pose_markers(BIN_INNER_POSES[4*NUM_COLUMNS*BIN_POSE_RAND_N : 8*NUM_COLUMNS*BIN_POSE_RAND_N], marker_colors))
         return (ratio * 100)
 
     # manipulability test for bin approach poses
@@ -335,7 +336,7 @@ def pod_pose_sub_callback(TFmessage):
             print(f"x: {trnsfrm.transform.translation.x}, y: {trnsfrm.transform.translation.y}\n")
 
 
-"""def transform_msg(x=0.6, y=0.4125):
+"""def transform_msg(x=0.832, y=0.4125):
     transform = TransformStamped()
     transform.header.stamp = rospy.Time.now()
     transform.header.frame_id = 'base_link'
@@ -350,10 +351,10 @@ def pod_pose_sub_callback(TFmessage):
     return transform"""
 
 
-def spawn_model(model_name='pod', x=0.632, y=0.4125, pod_id=1):
+def spawn_model(model_name='pod', x=0.832, y=0.4125, pod_id=1):
     # load xacro file and parse it
     rospack = rospkg.RosPack()
-    xacro_path = os.path.join(rospack.get_path('aurmr_gazebo'), 'robots', 'pod.gazebo.xacro')
+    xacro_path = os.path.join(rospack.get_path('aurmr_gazebo'), 'robots', f'pod{pod_id}.gazebo.xacro')
     doc = xacro.parse(open(xacro_path))
     xacro.process_doc(doc, in_order=True, params={'id': str(pod_id)})
     model_description = doc.toprettyxml(indent='  ')
@@ -473,22 +474,23 @@ if __name__ == '__main__':
             for pod_x in range(xStart, xStop, xStep):
                 for pod_y in range(yStart, yStop, yStep):
                     print("Spawning model...")
-                    spawn_model(model_name='pod', x=pod_x/1000, y=pod_y/1000, pod_id=1)
+                    spawn_model(model_name='pod', x=pod_x/1000, y=pod_y/1000, pod_id=pod_id)
                     rospy.sleep(1)
-                    robot.add_pod_collision_geometry()
+                    robot.add_pod_collision_geometry(pod_id=pod_id)
                     robot.move_to_joint_angles(joints=robot.home_state.joint_state, startpoint='current')
                 
-                    score = main(TEST_MODE=test_mode, 
-                                    BIN_POSE_RAND_N=bin_pose_randN, 
-                                    dRoll=dRoll, dPitch=dPitch, dYaw=dYaw, 
-                                    SSL=int(SSL), vis_path=vis_path, 
-                                    planning_attempts=planning_attempts, 
-                                    planning_time=planning_time, 
-                                    replan_attempts=replan_attempts, 
-                                    joint_tolerance=joint_tolerance,
-                                    position_tolerance=position_tolerance,
-                                    orientation_tolerance=orientation_tolerance,
-                                    goal_type=goal_type)
+                    score = main(TEST_MODE=test_mode,
+                                 pod_id=pod_id,
+                                 BIN_POSE_RAND_N=bin_pose_randN, 
+                                 dRoll=dRoll, dPitch=dPitch, dYaw=dYaw, 
+                                 SSL=int(SSL), vis_path=vis_path, 
+                                 planning_attempts=planning_attempts, 
+                                 planning_time=planning_time, 
+                                 replan_attempts=replan_attempts, 
+                                 joint_tolerance=joint_tolerance,
+                                 position_tolerance=position_tolerance,
+                                 orientation_tolerance=orientation_tolerance,
+                                 goal_type=goal_type)
                     file.write(f"[{(pod_x / 1000):5.3f}, {(pod_y / 1000):5.3f}] : {score:7.4f}\n")
                     file.flush()  # Ensure the data is written to the file
                     os.fsync(file.fileno()) # Ensure the data is flushed to disk
@@ -500,10 +502,3 @@ if __name__ == '__main__':
         print(f"Failed to write to file: {e}")
 
     rospy.signal_shutdown('Shut down all nodes to stop launch file execution')
-    # Tested Currently
-    # pod_x = rospy.get_param('pod_x')
-    # pod_y = rospy.get_param('pod_y')
-    # with open('successScores.txt', 'a') as file:
-    #     file.write(str(pod_x) + " " + str(pod_y) + " " + str(round(main(), 4)) + "\n")
-
-
